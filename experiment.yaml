@@ -1,0 +1,61 @@
+title: Does our service tolerate the loss of its example file?
+description: >-
+  Our service reads data from an example file, can it support that file
+  disappearing?
+tags:
+  - tutorial
+  - filesystem
+configuration:
+  original_file_name: ./example.txt
+  moved_file_name: ./.example.txt
+
+controls:
+  - name: opentelemetry
+    provider:
+      type: python
+      module: chaostracing.oltp
+
+steady-state-hypothesis:
+  title: The example file must exist
+  probes:
+    - type: probe
+      name: service-is-unavailable
+      tolerance:
+        - 200
+      provider:
+        type: http
+        url: 'http://localhost:8000/read_example_file'
+
+method:
+  - name: move-example-file
+    type: action
+    provider:
+      type: python
+      module: os
+      func: rename
+      arguments:
+        src: '${original_file_name}'
+        dst: '${moved_file_name}'
+  - name: pause-execution
+    provider:
+      func: pause_execution
+      module: chaosreliably.activities.pauses
+      type: python
+      arguments:
+        duration: 3
+    type: action
+
+rollbacks:
+  - name: revert the change
+    type: action
+    provider:
+      type: python
+      module: os
+      func: rename
+      arguments:
+        src: '${moved_file_name}'
+        dst: '${original_file_name}'
+
+runtime:
+  hypothesis:
+    strategy: continuously
